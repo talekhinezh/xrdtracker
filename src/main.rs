@@ -279,11 +279,9 @@ async fn total_units(stake_asset: &String, date_time: &DateTime, db: &mut Databa
     total_units
 }
 
-async fn address(address: &String) {
-    let client = db_client().await;
+async fn address(address: &String, datetime: &DateTime, client: &mut Client) {
     let mut db = client.database("radix");
     let balances_collection = db.collection::<BalanceEntry>("balances");
-    let datetime = DateTime::parse_rfc3339_str("2021-12-31T23:59:59.999-06:00").expect("invalid date");
     let pipeline = vec![
         doc! {
             "$sort": {
@@ -318,8 +316,6 @@ async fn address(address: &String) {
         }
       }
     ];
-    println!("address: {}", address);
-    println!("date: {}", datetime);
     let mut xrd = BigInt::zero();
     let granularity = BigInt::from(10).pow(18);
     let mut total_staked_xrd = BigInt::zero();
@@ -328,28 +324,28 @@ async fn address(address: &String) {
         let doc: DateTimeBalance = from_document(result.expect("oops")).expect("oops");
         if doc.asset.starts_with("stake_") {
             let validator = doc.asset.split_at(6).1.clone();
-            let total_stake = total_stake(&validator.to_string(), &datetime, &mut db).await;
+            let total_stake = total_stake(&validator.to_string(), datetime, &mut db).await;
             let stake_units = doc.balance.parse::<BigInt>().expect("oops");
-            let total_units = total_units(&doc.asset, &datetime, &mut db).await;
+            let total_units = total_units(&doc.asset, datetime, &mut db).await;
             let staked_xrd = stake_units * total_stake / total_units;
             total_staked_xrd += staked_xrd;
         } else if doc.asset.eq("xrd_rr1qy5wfsfh") {
             xrd = doc.balance.parse::<BigInt>().expect("oops");
-        } else {
+        } /*else {
             let (amt, rem) = doc.balance.parse::<BigInt>().expect("oops").div_rem(&granularity);
             println!("{}: {}.{:0>18}", doc.asset, amt, rem);
-        }
+        }*/
     }
 
     let (amt, rem) = xrd.div_rem(&granularity);
-    println!("xrd_rr1qy5wfsfh (liquid): {}.{:0>18}", amt, rem);
+    println!("  xrd_rr1qy5wfsfh (liquid): {}.{:0>18}", amt, rem);
     if total_staked_xrd.is_positive() {
         let (amt, rem) = total_staked_xrd.div_rem(&granularity);
-        println!("xrd_rr1qy5wfsfh (staked): {}.{:0>18}", amt, rem);
+        println!("  xrd_rr1qy5wfsfh (staked): {}.{:0>18}", amt, rem);
     }
     let total_xrd = xrd + total_staked_xrd;
     let (amt, rem) = total_xrd.div_rem(&granularity);
-    println!("xrd_rr1qy5wfsfh (total): {}.{:0>18}", amt, rem);
+    println!("  xrd_rr1qy5wfsfh (total): {}.{:0>18}", amt, rem);
 }
 
 #[tokio::main]
@@ -361,8 +357,19 @@ async fn main() -> Result<(), ()> {
         }
     }
      */
+    let mut client = db_client().await;
     let args: Vec<String> = std::env::args().collect();
     let account_addr = &args[1];
-    address(account_addr).await;
+
+    println!("address: {}", account_addr);
+
+    let datetime = DateTime::parse_rfc3339_str("2021-09-30T23:59:59.999-06:00").expect("invalid date");
+    println!("Q3 ({})", datetime);
+    address(account_addr, &datetime, &mut client).await;
+
+    let datetime = DateTime::parse_rfc3339_str("2021-12-31T23:59:59.999-06:00").expect("invalid date");
+    println!("Q4 ({})", datetime);
+    address(account_addr, &datetime, &mut client).await;
+
     Ok(())
 }
