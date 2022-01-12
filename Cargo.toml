@@ -18,5 +18,5 @@ serde = { version = "^1.0", features = ["derive"] }
 clap = "2.34.0"
 
 [[bin]]
-name = "xrd_tracker"
+name = "xrdtracker"
 path = "src/main.rs"
